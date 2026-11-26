@@ -100,7 +100,7 @@ def main():
 
     for s in FUTURES:
         try:
-            res = chart(s, interval="5m", range="2d", includePrePost="true")
+            res = chart(s, interval="5m", range="5d", includePrePost="true")
             cutoff = now.timestamp() - 26 * 3600
             out["futures"][s] = series(res, lambda t: t >= cutoff)
         except Exception as e:  # noqa: BLE001
@@ -117,6 +117,17 @@ def main():
             out["weekly"][s] = series(chart(s, interval="30m", range="5d"))
         except Exception as e:  # noqa: BLE001
             out["errors"][f"weekly {s}"] = str(e)
+
+    # Official previous close for intraday series: the daily close before the session date
+    for s, ser in out["intraday"].items():
+        d = out["daily"].get(s)
+        if not d:
+            continue
+        sess = dt.date.fromisoformat(ser["session_date_et"])
+        prior = [r for r in d["rows"] if dt.datetime.fromtimestamp(r[0], ET).date() < sess]
+        if prior:
+            ser["prevClose"] = prior[-1][1]
+            ser["prevClose_source"] = "daily close"
 
     with open("data/latest.json", "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
